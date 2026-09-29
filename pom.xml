@@ -73,6 +73,13 @@
             <version>21.9.0.0</version>
         </dependency>
 
+        <!-- Azure Event Grid -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-messaging-eventgrid</artifactId>
+            <version>4.31.8</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -96,17 +103,21 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.3.1</version>
+
                 <executions>
                     <execution>
                         <id>copy-wallets</id>
                         <phase>prepare-package</phase>
+
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>
+
                         <configuration>
                             <outputDirectory>
                                 ${project.build.directory}/azure-functions/${functionAppName}/wallets
                             </outputDirectory>
+
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/wallets</directory>
@@ -114,6 +125,7 @@
                                 </resource>
                             </resources>
                         </configuration>
+
                     </execution>
                 </executions>
             </plugin>
@@ -152,9 +164,11 @@
                 <executions>
                     <execution>
                         <id>package-functions</id>
+
                         <goals>
                             <goal>package</goal>
                         </goals>
+
                     </execution>
                 </executions>
 
@@ -164,6 +178,7 @@
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
                 <version>3.1.0</version>
+
                 <configuration>
                     <filesets>
                         <fileset>
@@ -171,6 +186,7 @@
                         </fileset>
                     </filesets>
                 </configuration>
+
             </plugin>
 
         </plugins>

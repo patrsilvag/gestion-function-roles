@@ -2,6 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "type": "java",
+      "name": "OracleConnectionTest",
+      "request": "launch",
+      "mainClass": "com.function.OracleConnectionTest",
+      "projectName": "gestion-function-roles"
+    },
+    {
       "name": "Attach to Java Functions",
       "type": "java",
       "request": "attach",
