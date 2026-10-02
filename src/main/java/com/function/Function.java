@@ -4,16 +4,19 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
+
 import com.azure.core.credential.AzureKeyCredential;
 import com.azure.core.util.BinaryData;
 import com.azure.messaging.eventgrid.EventGridEvent;
 import com.azure.messaging.eventgrid.EventGridPublisherClient;
 import com.azure.messaging.eventgrid.EventGridPublisherClientBuilder;
+
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.HttpMethod;
 import com.microsoft.azure.functions.HttpRequestMessage;
 import com.microsoft.azure.functions.HttpResponseMessage;
 import com.microsoft.azure.functions.HttpStatus;
+
 import com.microsoft.azure.functions.annotation.AuthorizationLevel;
 import com.microsoft.azure.functions.annotation.BindingName;
 import com.microsoft.azure.functions.annotation.FunctionName;
@@ -326,7 +329,8 @@ public class Function {
                     """;
 
             try (Connection connection = OracleConnection.getConnection();
-                    PreparedStatement statement = connection.prepareStatement(sql)) {
+                    PreparedStatement statement =
+                            connection.prepareStatement(sql, new String[] {"ID_ROL"})) {
 
                 connection.setAutoCommit(false);
 
@@ -343,6 +347,22 @@ public class Function {
                             .body("No fue posible crear el rol.").build();
                 }
 
+                // Obtener el ID generado por Oracle
+                long idRol;
+
+                try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+
+                    if (!generatedKeys.next()) {
+
+                        connection.rollback();
+
+                        return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("No fue posible obtener el ID del rol creado.").build();
+                    }
+
+                    idRol = generatedKeys.getLong(1);
+                }
+
                 connection.commit();
 
                 /*
@@ -352,17 +372,18 @@ public class Function {
                  * El evento se publica solamente después de confirmar correctamente la creación en
                  * Oracle.
                  */
-                publicarEventoRolCreado(nombreRol, estado, context);
+                publicarEventoRolCreado(idRol, nombreRol, estado, context);
 
                 String response = """
                         {
                             "mensaje": "Rol creado correctamente",
+                            "idRol": %d,
                             "nombreRol": "%s",
                             "estado": "%s"
                         }
-                        """.formatted(nombreRol, estado);
+                        """.formatted(idRol, nombreRol, estado);
 
-                context.getLogger().info("Rol creado correctamente.");
+                context.getLogger().info("Rol creado correctamente. ID: " + idRol);
 
                 return request.createResponseBuilder(HttpStatus.CREATED)
                         .header("Content-Type", "application/json").body(response).build();
@@ -381,7 +402,7 @@ public class Function {
      * ========================================================= EVENTO RolCreado
      * =========================================================
      */
-    private void publicarEventoRolCreado(String nombreRol, String estado,
+    private void publicarEventoRolCreado(long idRol, String nombreRol, String estado,
             ExecutionContext context) {
 
         String endpoint = System.getenv("EVENT_GRID_TOPIC_ENDPOINT");
@@ -397,10 +418,11 @@ public class Function {
 
         String eventData = String.format("""
                 {
+                    "idRol": %d,
                     "nombreRol": "%s",
                     "estado": "%s"
                 }
-                """, nombreRol, estado);
+                """, idRol, nombreRol, estado);
 
         EventGridEvent evento = new EventGridEvent("/gestion/roles", "RolCreado",
                 BinaryData.fromString(eventData), "1.0");
