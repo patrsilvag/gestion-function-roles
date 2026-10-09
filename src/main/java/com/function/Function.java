@@ -4,19 +4,16 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Optional;
-
 import com.azure.core.credential.AzureKeyCredential;
 import com.azure.core.util.BinaryData;
 import com.azure.messaging.eventgrid.EventGridEvent;
 import com.azure.messaging.eventgrid.EventGridPublisherClient;
 import com.azure.messaging.eventgrid.EventGridPublisherClientBuilder;
-
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.HttpMethod;
 import com.microsoft.azure.functions.HttpRequestMessage;
 import com.microsoft.azure.functions.HttpResponseMessage;
 import com.microsoft.azure.functions.HttpStatus;
-
 import com.microsoft.azure.functions.annotation.AuthorizationLevel;
 import com.microsoft.azure.functions.annotation.BindingName;
 import com.microsoft.azure.functions.annotation.FunctionName;
@@ -241,9 +238,9 @@ public class Function {
             return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
                     .body("El ID debe ser numérico.").build();
         }
-
         String sql = """
-                DELETE FROM ROLES
+                UPDATE ROLES
+                SET ESTADO = 'INACTIVO'
                 WHERE ID_ROL = ?
                 """;
 
@@ -268,26 +265,31 @@ public class Function {
 
             connection.commit();
 
+            context.getLogger().info("Rol marcado como INACTIVO. ID: " + idRol);
+
             /*
              * ========================================================= PUBLICAR EVENTO
              * RolEliminado =========================================================
              *
-             * El evento se publica solamente después de confirmar correctamente la eliminación en
-             * Oracle.
+             * El rol queda INACTIVO antes de publicar el evento. El Consumer será responsable de
+             * actualizar los usuarios asociados y posteriormente eliminar físicamente el rol.
              */
             publicarEventoRolEliminado(idRol, context);
 
-            context.getLogger().info("Rol eliminado correctamente. ID: " + idRol);
+            context.getLogger().info("Evento RolEliminado publicado correctamente.");
+            context.getLogger()
+                    .info("Procesamiento de eliminación iniciado por eventos. ID: " + idRol);
 
             return request.createResponseBuilder(HttpStatus.OK)
-                    .body("Rol eliminado correctamente. ID: " + idRol).build();
+                    .body("Rol marcado como INACTIVO y evento RolEliminado publicado. ID: " + idRol)
+                    .build();
 
         } catch (Exception e) {
 
-            context.getLogger().severe("Error eliminando rol: " + e.getMessage());
+            context.getLogger().severe("Error iniciando eliminación del rol: " + e.getMessage());
 
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("No fue posible eliminar el rol.").build();
+                    .body("No fue posible iniciar la eliminación del rol.").build();
         }
     }
 
